@@ -6,6 +6,7 @@ import Login from './Login';
 
 const API_URL = 'http://localhost:8000';
 const WS_URL = 'ws://localhost:8000/ws/chat';
+const ELEVENLABS_API_KEY = process.env.REACT_APP_ELEVENLABS_API_KEY || 'your-key-here';
 
 const VOICE_OPTIONS = [
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Warm)' },
@@ -38,7 +39,14 @@ function App() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
   const [selectedVoice, setSelectedVoice] = useState(() => {
-    return localStorage.getItem('selectedVoice') || '21m00Tcm4TlvDq8ikWAM';
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        return localStorage.getItem(`voice_${user.id}`) || '21m00Tcm4TlvDq8ikWAM';
+      } catch (e) {}
+    }
+    return '21m00Tcm4TlvDq8ikWAM';
   });
   const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
 
@@ -54,6 +62,9 @@ function App() {
       try {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
+        // Load user's voice preference
+        const savedVoice = localStorage.getItem(`voice_${parsedUser.id}`);
+        if (savedVoice) setSelectedVoice(savedVoice);
       } catch (e) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -64,6 +75,9 @@ function App() {
 
   const handleLogin = (loggedInUser) => {
     setUser(loggedInUser);
+    // Load user's voice preference
+    const savedVoice = localStorage.getItem(`voice_${loggedInUser.id}`);
+    if (savedVoice) setSelectedVoice(savedVoice);
   };
 
   const handleLogout = () => {
@@ -78,8 +92,49 @@ function App() {
 
   const handleVoiceChange = (voiceId) => {
     setSelectedVoice(voiceId);
-    localStorage.setItem('selectedVoice', voiceId);
+    if (user?.id) localStorage.setItem(`voice_${user.id}`, voiceId);
     setShowVoiceDropdown(false);
+  };
+
+  // Generate speech directly from frontend
+  const generateSpeech = async (text) => {
+    try {
+      const cleanText = text.replace(/\[.*?\]/g, '').trim();
+      const response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`,
+        {
+          text: cleanText,
+          model_id: "eleven_v3",
+          voice_settings: {
+            stability: 0.3,
+            similarity_boost: 0.75,
+            style: 0.6,
+            use_speaker_boost: true
+          },
+          optimize_streaming_latency: 3,
+          output_format: "mp3_44100_128"
+        },
+        {
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': ELEVENLABS_API_KEY
+          },
+          responseType: 'arraybuffer'
+        }
+      );
+      
+      const base64Audio = btoa(
+        new Uint8Array(response.data).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      
+      audioElementRef.current.src = `data:audio/mp3;base64,${base64Audio}`;
+      audioElementRef.current.play();
+      setIsSpeaking(true);
+    } catch (error) {
+      console.error('ElevenLabs error:', error);
+      setIsSpeaking(false);
+    }
   };
 
   // Initialize new session on login
@@ -323,6 +378,15 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = document.querySelector('.message-input');
+    if (textarea) {
+      textarea.style.height = '24px';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
+  }, [inputText]);
+
   useEffect(() => {
     const audio = audioElementRef.current;
     
@@ -381,11 +445,15 @@ function App() {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        setMessages(prev => [...prev, {
+        const assistantMessage = {
           role: 'assistant',
           content: response.data.response,
           emotion: response.data.emotion
-        }]);
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        const audioText = response.data.tagged_script || response.data.response;
+        await generateSpeech(audioText);
         
         setIsThinking(false);
         fetchSessions();
@@ -532,7 +600,7 @@ function App() {
                   >
                     <div className="message-bubble">
                       <p className="message-text">{msg.content}</p>
-                      {msg.emotion && (
+                      {msg.emotion && msg.role === 'assistant' && (
                         <p className="message-emotion">{msg.emotion}</p>
                       )}
                     </div>
@@ -577,14 +645,19 @@ function App() {
 
           <div className="input-wrapper">
             <div className="input-container">
-              <input
-                type="text"
+              <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
                 placeholder={isRecording ? "🎤 Listening..." : "Type a message..."}
                 className="message-input"
                 disabled={isRecording}
+                rows={1}
               />
               
               <button
@@ -627,4 +700,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 

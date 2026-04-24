@@ -90,6 +90,7 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  padding-bottom: 20px;
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
@@ -278,14 +279,16 @@ body {
 
 .input-container {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 8px;
   background: #1e1e2f;
-  border-radius: 30px;
-  padding: 5px 5px 5px 18px;
+  border-radius: 20px;
+  padding: 6px 8px 6px 16px;
   border: 1px solid rgba(102, 126, 234, 0.3);
   transition: all 0.3s;
+  min-height: 48px;
 }
+
 
 .input-container:focus-within {
   border-color: #667eea;
@@ -298,8 +301,19 @@ body {
   border: none;
   color: white;
   font-size: 15px;
-  padding: 12px 0;
+  padding: 10px 0;
   outline: none;
+  resize: none;
+  min-height: 24px;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.5;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.message-input::-webkit-scrollbar {
+  display: none;
 }
 
 .message-input::placeholder {
@@ -311,8 +325,8 @@ body {
 }
 
 .voice-btn, .send-btn {
-  width: 45px;
-  height: 45px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: none;
   display: flex;
@@ -321,6 +335,8 @@ body {
   cursor: pointer;
   transition: all 0.3s;
   font-size: 20px;
+  flex-shrink: 0;
+  margin-bottom: 2px;
 }
 
 .voice-btn {
@@ -375,6 +391,8 @@ body {
 .chat-container::-webkit-scrollbar-thumb:hover {
   background: rgba(102, 126, 234, 0.5);
 }
+
+
 
 /* ============================================ */
 /* NEW SIDEBAR STYLES (Multi-Session Support)    */
